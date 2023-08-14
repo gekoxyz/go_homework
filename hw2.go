@@ -24,31 +24,33 @@ const (
 )
 
 func main() {
-	var customers [10]Customer
+	customers := make([]Customer, 10)
 
 	var wg sync.WaitGroup
 	wg.Add(len(customers))
 
+	channel := make(chan int, len(customers))
+
 	// Noleggi d'auto che deve gestire le prenotazioni di 10 clienti.
 	for c := range customers {
 		customers[c].name = "customer" + fmt.Sprintf("%d", c+1)
-		fmt.Println("creato: " + customers[c].name)
 	}
 
 	for _, c := range customers {
-		go noleggia(c, &wg)
+		go noleggia(c, &wg, channel)
 	}
 
 	// aspetto che tutto il gruppo di thread finisca l'esecuzione
 	wg.Wait()
+	close(channel)
 
 	// stampo il risultato
-	// stampa(result_channel)
+	stampa(channel)
 }
 
 // function noleggia prende come input un cliente che prenota uno a caso tra i veicoli.
 // stampare il cliente x che noleggia il veicolo y
-func noleggia(customer Customer, wg *sync.WaitGroup) {
+func noleggia(customer Customer, wg *sync.WaitGroup, rented_channel chan int) {
 	rented_veichle := rand.Intn(3)
 	rented_veichle_str := ""
 
@@ -60,35 +62,37 @@ func noleggia(customer Customer, wg *sync.WaitGroup) {
 	case station_wagon:
 		rented_veichle_str = "station wagon"
 	default:
-		fmt.Println("Error while generating the random veichle")
+		fmt.Println("Errore durante la generazione del veicolo random")
 	}
 
 	fmt.Println("Il cliente " + customer.name + " ha noleggiato: " + rented_veichle_str)
-
+	// maybe has to be in a mutex
+	rented_channel <- rented_veichle
 	wg.Done()
 }
 
 // function stampa che stampa alla fine del processo il numero di berline, suv e station wagon noleggiati
 // ogni cliente puo' noleggiare un veicolo contemporaneamente ad altri
-func stampa(result_channel chan int) {
-	rented_veichles := make(map[string]int)
+func stampa(channel chan int) {
+	rented_veichles := map[string]int{
+		"berlina":       0,
+		"SUV":           0,
+		"station wagon": 0,
+	}
 
-	rented_veichles["berlina"] = 0
-	rented_veichles["SUV"] = 0
-	rented_veichles["station wagon"] = 0
-
-	for v := range result_channel {
-		switch v {
-		case berlina:
+	for el := range channel {
+		switch el {
+		case 0:
 			rented_veichles["berlina"]++
-		case suv:
+		case 1:
 			rented_veichles["SUV"]++
-		case station_wagon:
+		case 2:
 			rented_veichles["station wagon"]++
 		}
 	}
-
-	for el := range rented_veichles {
-		fmt.Println(el)
+	fmt.Println("i veicoli noleggiati sono stati:")
+	for veichle_type, veichle_count := range rented_veichles {
+		fmt.Printf("Tipo macchina: %s, Numero noleggi: %d\n", veichle_type, veichle_count)
 	}
+
 }
